@@ -1,5 +1,6 @@
 import { use, Suspense } from "react";
-
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 async function getData() {
 	const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
 		? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
@@ -27,6 +28,10 @@ export default function Home() {
 			<Suspense fallback={<div className="animate-pulse">数据加载中...</div>}>
 				<MessageContent />
 			</Suspense>
+			<div className="flex gap-2 justify-center">
+				<Input />
+				<Button>Click me</Button>
+			</div>
 		</div>
 	);
 }
