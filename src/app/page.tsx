@@ -1,37 +1,28 @@
-import { use, Suspense } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ChatContainer } from "@/components/ChatContainer";
+import { client } from "@/lib/fetch";
+
 async function getData() {
-	const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-		? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-		: "http://localhost:3000";
-	const res = await fetch(`${baseUrl}/api/hello`);
-	// The return value is *not* serialized
-	// You can return Date, Map, Set, etc.
+  try {
+    const res = await client.api.hello.$get();
 
-	if (!res.ok) {
-		// This will activate the closest `error.js` Error Boundary
-		throw new Error("Failed to fetch data");
-	}
+    if (!res.ok) {
+      // This will activate the closest `error.js` Error Boundary
+      throw new Error("Failed to fetch data");
+    }
 
-	return res.json();
+    return res.json();
+  } catch (error) {
+    console.error("获取数据失败:", error);
+    return { message: "AI 助手" };
+  }
 }
 
-function MessageContent() {
-	const { message } = use(getData());
-	return <>{message}</>;
-}
+export default async function Home() {
+  const { message } = await getData();
 
-export default function Home() {
-	return (
-		<div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-			<Suspense fallback={<div className="animate-pulse">数据加载中...</div>}>
-				<MessageContent />
-			</Suspense>
-			<div className="flex gap-2 justify-center">
-				<Input />
-				<Button>Click me</Button>
-			</div>
-		</div>
-	);
+  return (
+    <div className="h-screen grid grid-rows-[auto_1fr_auto] items-center justify-items-center min-h-screen p-4 sm:p-6 pb-10 gap-4 sm:gap-8 font-[family-name:var(--font-geist-sans)]">
+      <ChatContainer title={message} className="w-full max-w-2xl" />
+    </div>
+  );
 }
