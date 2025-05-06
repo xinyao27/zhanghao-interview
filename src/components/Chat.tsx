@@ -8,10 +8,23 @@ import { SendHorizontalIcon, SquareIcon } from "lucide-react";
 import type { Message } from "ai";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { throttle } from "lodash";
+import { chatLocalStorage } from "@/lib/local";
+
+// 扩展Message类型以支持工具调用
+interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+interface ExtendedMessage extends Message {
+  toolCalls?: ToolCall[];
+  toolCallResults?: (string | Record<string, unknown>)[];
+}
 
 interface ChatProps {
   sessionId?: string;
-  initialMessages?: Message[];
+  initialMessages?: ExtendedMessage[];
   className?: string;
   onSessionIdChange?: (sessionId: string) => void;
 }
@@ -35,7 +48,7 @@ export function Chat({
       },
       onResponse: (response) => {
         // 从响应头中获取会话ID
-        const newSessionId = response.headers.get("X-Session-ID");
+        const newSessionId = response.headers.get("X-SESSION-ID");
         if (newSessionId && newSessionId !== currentSessionId) {
           newSessionIdRef.current = newSessionId;
         }
@@ -55,6 +68,17 @@ export function Chat({
       },
     });
   console.log(messages, " messages");
+
+  // 处理停止时保存会话ID到本地存储
+  const handleStop = React.useCallback(() => {
+    if (currentSessionId || newSessionIdRef.current) {
+      chatLocalStorage.setSessionId(
+        currentSessionId || (newSessionIdRef.current as string)
+      );
+      console.log("已保存会话ID到本地存储:", currentSessionId);
+    }
+    stop();
+  }, [currentSessionId, stop]);
 
   // 滚动到底部的函数
   const scrollToBottom = () => {
@@ -80,6 +104,84 @@ export function Chat({
     throttledScrollToBottom();
   }, [JSON.stringify(messages)]);
 
+  // 渲染消息内容，处理工具调用结果
+  const renderMessageContent = (message: ExtendedMessage) => {
+    // 如果有工具调用结果，特殊处理显示
+    if (
+      message.role === "assistant" &&
+      message.toolCalls &&
+      message.toolCalls.length > 0
+    ) {
+      return (
+        <>
+          {message.content && (
+            <div className="mb-2">
+              <MarkdownRenderer content={message.content} />
+            </div>
+          )}
+          {message.toolCalls.map((toolCall, toolIndex) => {
+            // 获取工具调用结果
+            const toolCallResult = message.toolCallResults?.[toolIndex];
+            if (!toolCallResult) return null;
+
+            let toolResultContent = "";
+            try {
+              const resultObj =
+                typeof toolCallResult === "string"
+                  ? JSON.parse(toolCallResult)
+                  : toolCallResult;
+
+              if (toolCall.name === "getCurrentTime") {
+                toolResultContent = `**当前时间信息**:\n\n- 日期: ${resultObj.date}\n- 时间: ${resultObj.time}\n- 时区: ${resultObj.timezone}`;
+              } else {
+                toolResultContent = `\`\`\`json\n${JSON.stringify(
+                  resultObj,
+                  null,
+                  2
+                )}\n\`\`\``;
+              }
+            } catch (e) {
+              toolResultContent = String(toolCallResult);
+            }
+
+            return (
+              <div
+                key={`tool-call-${toolCall.id}`}
+                className="mb-2 p-2 border border-gray-200 dark:border-gray-700 rounded-md"
+              >
+                <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  工具: {toolCall.name}
+                </div>
+                <MarkdownRenderer content={toolResultContent} />
+              </div>
+            );
+          })}
+        </>
+      );
+    }
+
+    // 标准消息渲染
+    if (message.parts && message.parts.length > 0) {
+      return (
+        <>
+          {message.parts.map((part, idx) => {
+            if (part.type === "text") {
+              return (
+                <MarkdownRenderer
+                  key={`${message.id}-part-${idx}`}
+                  content={part.text}
+                />
+              );
+            }
+            return null;
+          })}
+        </>
+      );
+    }
+
+    return <MarkdownRenderer content={message.content} key={message.id} />;
+  };
+
   return (
     <>
       <div
@@ -91,7 +193,7 @@ export function Chat({
       >
         <div
           id="scroll-container"
-          className="flex-1  p-4 space-y-4 border rounded-md shadow-inner bg-background"
+          className="flex-1 p-4 space-y-4 border rounded-md shadow-inner bg-background"
         >
           {messages.map((m) => (
             <div
@@ -110,25 +212,7 @@ export function Chat({
                   "prose dark:prose-invert prose-sm prose-p:m-0 prose-li:m-0 prose-ul:m-0 prose-ol:m-0"
                 )}
               >
-                {m.parts && m.parts.length > 0 ? (
-                  // 如果存在parts，则显示parts中的内容
-                  <>
-                    {m.parts.map((part, idx) => {
-                      if (part.type === "text") {
-                        return (
-                          <MarkdownRenderer
-                            key={`${m.id}-part-${idx}`}
-                            content={part.text}
-                          />
-                        );
-                      }
-                      return null;
-                    })}
-                  </>
-                ) : (
-                  // 否则使用content
-                  <MarkdownRenderer content={m.content} key={m.id} />
-                )}
+                {renderMessageContent(m as ExtendedMessage)}
               </div>
             </div>
           ))}
@@ -156,7 +240,7 @@ export function Chat({
           <Button
             type="button"
             variant="outline"
-            onClick={() => stop()}
+            onClick={handleStop}
             className="flex items-center gap-1.5"
           >
             <SquareIcon className="h-4 w-4" />

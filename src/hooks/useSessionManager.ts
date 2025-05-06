@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Message } from "ai";
+import { chatLocalStorage } from "@/lib/local";
 
 // 定义数据库消息类型
 interface DBMessage {
@@ -18,9 +19,8 @@ export function useSessionManager() {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 客户端渲染后，从localStorage中读取sessionId
   useEffect(() => {
-    const savedSessionId = localStorage.getItem("chatSessionId") || undefined;
+    const savedSessionId = chatLocalStorage.getSessionId() || undefined;
     if (savedSessionId) {
       setSessionId(savedSessionId);
     }
@@ -29,7 +29,7 @@ export function useSessionManager() {
   // 当会话ID变化时保存到本地存储
   useEffect(() => {
     if (sessionId) {
-      localStorage.setItem("chatSessionId", sessionId);
+      chatLocalStorage.setSessionId(sessionId);
     }
   }, [sessionId]);
 
@@ -73,7 +73,7 @@ export function useSessionManager() {
   // 开始新对话
   const startNewChat = () => {
     // 清除本地存储的会话ID
-    localStorage.removeItem("chatSessionId");
+    chatLocalStorage.removeSessionId();
     // 重置状态
     setSessionId(undefined);
     setInitialMessages([]);
