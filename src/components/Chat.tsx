@@ -2,7 +2,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useChat } from "@ai-sdk/react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SendHorizontalIcon, SquareIcon } from "lucide-react";
 import type { Message } from "ai";
@@ -27,6 +26,8 @@ interface ChatProps {
   initialMessages?: ExtendedMessage[];
   className?: string;
   onSessionIdChange?: (sessionId: string) => void;
+  onNewMessage?: (id: string) => void;
+  onSendNewMessage?: () => void;
 }
 
 export function Chat({
@@ -34,6 +35,8 @@ export function Chat({
   initialMessages = [],
   className,
   onSessionIdChange,
+  onNewMessage,
+  onSendNewMessage,
 }: ChatProps) {
   const [currentSessionId, setCurrentSessionId] = React.useState<
     string | undefined
@@ -51,6 +54,7 @@ export function Chat({
         const newSessionId = response.headers.get("X-SESSION-ID");
         if (newSessionId && newSessionId !== currentSessionId) {
           newSessionIdRef.current = newSessionId;
+          onNewMessage?.(newSessionIdRef.current as string);
         }
       },
       onFinish: (message) => {
@@ -184,74 +188,104 @@ export function Chat({
 
   return (
     <>
-      <div
-        className={cn(
-          "flex flex-col w-full max-w-2xl mx-auto overflow-y-auto",
-          className
-        )}
-        id="messages-container"
-      >
+      {messages && messages.length > 0 && (
         <div
-          id="scroll-container"
-          className="flex-1 p-4 space-y-4 border rounded-md shadow-inner bg-background"
+          className={cn(
+            "flex flex-col w-full mx-auto overflow-y-auto",
+            className
+          )}
+          id="messages-container"
         >
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={cn(
-                "flex",
-                m.role === "user" ? "justify-end" : "justify-start"
-              )}
-            >
+          <div id="scroll-container" className="flex-1  space-y-4">
+            {messages.map((m) => (
               <div
+                key={m.id}
                 className={cn(
-                  "p-3 rounded-lg max-w-[95%]",
-                  m.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
-                  "prose dark:prose-invert prose-sm prose-p:m-0 prose-li:m-0 prose-ul:m-0 prose-ol:m-0"
+                  "flex",
+                  m.role === "user" ? "justify-end" : "justify-start"
                 )}
               >
-                {renderMessageContent(m as ExtendedMessage)}
+                <div
+                  className={cn(
+                    "p-3 rounded-lg max-w-[95%]",
+                    m.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground",
+                    "prose dark:prose-invert prose-sm prose-p:m-0 prose-li:m-0 prose-ul:m-0 prose-ol:m-0"
+                  )}
+                >
+                  {renderMessageContent(m as ExtendedMessage)}
+                </div>
               </div>
-            </div>
-          ))}
-          {isLoading && messages[messages.length - 1]?.role === "user" && (
-            <div className="flex justify-start">
-              <div className="p-3 rounded-lg bg-muted text-muted-foreground animate-pulse">
-                思考中...
+            ))}
+            {isLoading && messages[messages.length - 1]?.role === "user" && (
+              <div className="flex justify-start">
+                <div className="p-3 rounded-lg bg-muted text-muted-foreground animate-pulse">
+                  思考中...
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
       <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-2xl mx-auto flex items-center mt-4 gap-2"
+        onSubmit={(e) => {
+          onSendNewMessage?.();
+          handleSubmit(e);
+        }}
+        className="w-full  mx-auto mt-4"
       >
-        <Input
-          value={input}
-          onChange={handleInputChange}
-          placeholder="输入消息..."
-          className="flex-1"
-          disabled={isLoading}
-        />
-        {isLoading ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleStop}
-            className="flex items-center gap-1.5"
-          >
-            <SquareIcon className="h-4 w-4" />
-            停止
-          </Button>
-        ) : (
-          <Button type="submit" disabled={!input.trim()}>
-            <SendHorizontalIcon className="h-4 w-4" />
-            <span className="sr-only">发送</span>
-          </Button>
-        )}
+        <div className="relative">
+          <div className="rounded-xl h-32 shadow-sm border-2 focus-within:border-primary overflow-hidden">
+            <textarea
+              value={input}
+              onChange={(e) =>
+                handleInputChange({
+                  target: { value: e.target.value },
+                } as React.ChangeEvent<HTMLInputElement>)
+              }
+              placeholder="输入消息..."
+              className="w-full resize-none py-1 px-4 outline-none focus:outline-none border-0 focus:ring-0 bg-background min-h-[56px] h-full pr-14"
+              rows={Math.min(4, Math.max(1, input.split("\n").length))}
+              disabled={isLoading}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (input.trim()) {
+                    const syntheticEvent = new Event("submit", {
+                      bubbles: true,
+                      cancelable: true,
+                    }) as unknown as React.FormEvent<HTMLFormElement>;
+                    handleSubmit(syntheticEvent);
+                    onSendNewMessage?.();
+                  }
+                }
+              }}
+            />
+            <div className="absolute bottom-8 right-3">
+              {isLoading ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleStop}
+                  className="flex items-center gap-1.5"
+                >
+                  <SquareIcon className="h-3 w-3" />
+                  停止
+                </Button>
+              ) : (
+                <Button size="sm" type="submit" disabled={!input.trim()}>
+                  <SendHorizontalIcon className="h-3 w-3" />
+                  <span className="sr-only">发送</span>
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 text-right">
+            按 Enter 发送，Shift + Enter 换行
+          </p>
+        </div>
       </form>
     </>
   );

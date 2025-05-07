@@ -5,7 +5,7 @@ import { deepseek } from "@ai-sdk/deepseek";
 import { db } from "@/lib/db";
 import { chatMessages, chatSessions } from "@/lib/db/schema";
 import { v4 as uuidv4 } from "uuid";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { streamText, tool } from "ai";
 
 const paramSchema = z.object({
@@ -53,45 +53,12 @@ const app = new Hono()
       const sessions = await db
         .select()
         .from(chatSessions)
-        .orderBy(chatSessions.updatedAt);
+        .orderBy(desc(chatSessions.updatedAt));
 
       return c.json({ sessions });
     } catch (error) {
       console.error("Error fetching sessions:", error);
       return c.json({ error: "获取会话列表失败" }, 500);
-    }
-  })
-  .get("/sessions", async (c) => {
-    try {
-      // 使用SQL查询获取所有会话及其最新消息
-      const sessions = await db
-        .select({
-          id: chatSessions.sessionId,
-          title: chatSessions.title,
-          createdAt: chatSessions.createdAt,
-          updatedAt: chatSessions.updatedAt,
-          lastMessage: chatMessages.content,
-        })
-        .from(chatSessions)
-        .leftJoin(
-          chatMessages,
-          eq(chatSessions.sessionId, chatMessages.sessionId)
-        )
-        .orderBy(chatSessions.updatedAt);
-
-      return c.json({
-        success: true,
-        data: sessions,
-      });
-    } catch (error) {
-      console.error("获取会话列表失败:", error);
-      return c.json(
-        {
-          success: false,
-          error: "获取会话列表失败",
-        },
-        500
-      );
     }
   })
   .get("/:sessionId", zValidator("param", paramSchema), async (c) => {

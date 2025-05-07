@@ -3,15 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { Message } from "ai";
 import { chatLocalStorage } from "@/lib/local";
-
-// 定义数据库消息类型
-interface DBMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: string;
-  sessionId: string;
-}
+import { client } from "@/lib/fetch";
 
 export function useSessionManager() {
   // 初始状态设为固定值，避免服务端和客户端不一致
@@ -47,13 +39,17 @@ export function useSessionManager() {
 
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/agent/${sessionId}`);
+        const response = await client.api.agent[":sessionId"].$get({
+          param: {
+            sessionId,
+          },
+        });
         if (response.ok) {
           const data = await response.json();
           // 将数据库消息格式转换为AI SDK消息格式
-          const messages: Message[] = data.messages.map((msg: DBMessage) => ({
-            id: msg.id,
-            role: msg.role,
+          const messages = data.messages?.map((msg) => ({
+            id: msg.id.toString(),
+            role: msg.role as "user" | "assistant",
             content: msg.content,
             createdAt: new Date(msg.createdAt),
           }));
@@ -89,6 +85,7 @@ export function useSessionManager() {
     initialMessages,
     isLoading,
     handleSessionIdChange,
+    setSessionId,
     startNewChat,
   };
 }
