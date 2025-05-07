@@ -1,3 +1,4 @@
+"use client";
 import { useState, useCallback, useEffect } from "react";
 import { client } from "@/lib/fetch";
 import type { InferResponseType } from "hono/client";

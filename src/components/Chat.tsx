@@ -196,7 +196,10 @@ export function Chat({
           )}
           id="messages-container"
         >
-          <div id="scroll-container" className="flex-1  space-y-4">
+          <div
+            id="scroll-container"
+            className="flex-1 w-[766px] mx-auto space-y-4"
+          >
             {messages.map((m) => (
               <div
                 key={m.id}
@@ -233,7 +236,7 @@ export function Chat({
           onSendNewMessage?.();
           handleSubmit(e);
         }}
-        className="w-full  mx-auto mt-4"
+        className="w-full  max-w-[766px] mx-auto mt-4"
       >
         <div className="relative">
           <div className="rounded-xl h-32 shadow-sm border-2 focus-within:border-primary overflow-hidden">
